@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 im = cv2.imread('car_dis.png', cv2.IMREAD_GRAYSCALE)
 f = np.fft.fft2(im)
 fshift = np.fft.fftshift(f)
-filtered_magnitude_spectrum_2 = np.log(np.abs(fshift) + 1)
+magnitude_spectrum = np.log(np.abs(fshift) + 1)
 
 # Display and save the original image
 plt.figure()
@@ -17,7 +17,7 @@ plt.savefig('Original_Image.png')
 
 # Display and save the magnitude spectrum
 plt.figure()
-plt.imshow(filtered_magnitude_spectrum_2, cmap='gray')
+plt.imshow(magnitude_spectrum, cmap='gray')
 plt.title('Log Magnitude Spectrum')
 plt.xlabel('Frequency (Hz)')
 plt.ylabel('Frequency (Hz)')
@@ -46,11 +46,11 @@ plt.savefig("filtered_default.png", dpi=150, bbox_inches='tight')
 # Compute FFT and shift the zero-frequency component to the center
 f_transform = np.fft.fft2(filtered_im)
 f_shift = np.fft.fftshift(f_transform)
-filtered_magnitude_spectrum_2 = np.log(np.abs(f_shift))
+filtered_magnitude_spectrum = np.log(np.abs(f_shift))
 
 # Display the log-magnitude spectrum
 plt.figure()
-plt.imshow(filtered_magnitude_spectrum_2, cmap='gray')
+plt.imshow(filtered_magnitude_spectrum, cmap='gray')
 plt.title('Log Magnitude Spectrum of Filtered Image')
 plt.xlabel('Frequency (Hz)')
 plt.ylabel('Frequency (Hz)')
