@@ -171,3 +171,88 @@ print("xWorldLimits:", (x_min, x_max))
 print("yWorldLimits:", (y_min, y_max))
 
 
+
+
+# Initialize an array to hold the transformation matrices
+tform = [np.eye(3) for _ in range(len(images))]
+
+# Compute the cumulative homography matrices
+for n in range(1, len(images)):
+    # Extract points between image n and image n-1
+    points_n_minus_1, points_n = matching_points[(n - 1, n)]
+
+    # Compute homography matrix from image n to image n-1
+    h_matrix_n, _ = cv2.findHomography(points_n, points_n_minus_1, method=cv2.RANSAC)
+
+    # Update the transformation matrix for image n in reference to image 1
+    tform[n] = tform[n - 1] @ h_matrix_n
+
+# Calculate the common world coordinate system
+x_mins, x_maxs, y_mins, y_maxs = [], [], [], []
+for n in range(len(images)):
+    x_min, x_max, y_min, y_max = get_spatial_limits(tform[n], images[n].shape)
+    x_mins.append(x_min)
+    x_maxs.append(x_max)
+    y_mins.append(y_min)
+    y_maxs.append(y_max)
+
+x_min, x_max = min(x_mins), max(x_maxs)
+y_min, y_max = min(y_mins), max(y_maxs)
+width = int(np.ceil(x_max - x_min))
+height = int(np.ceil(y_max - y_min))
+
+dst_size = (width, height)
+dst_offset = [-x_min, -y_min]
+dst_transform = np.array([[1, 0, dst_offset[0]], [0, 1, dst_offset[1]], [0, 0, 1]])
+
+# Initialize the stitched image canvas
+stitched_image = np.zeros((height, width, 3), dtype=np.uint8)
+
+for n in range(len(images)):
+    # Warp each image according to the corresponding transformation matrix
+    warped_image = cv2.warpPerspective(images[n], dst_transform @ tform[n], dst_size)
+
+    # Create a binary mask of the warped image
+    mask = (warped_image > 0).astype(np.uint8)
+
+    # Where the mask is not zero, update the stitched_image with the pixel values of the warped_image
+    stitched_image = stitched_image * (1 - mask) + warped_image * mask
+
+# Save the stitched image
+cv2.imwrite(os.path.join(image_folder, 'stitched_image.jpg'), stitched_image)
+
+print("Needed image size:", dst_size)
+print("xWorldLimits:", (x_min, x_max))
+print("yWorldLimits:", (y_min, y_max))
+
+# Initialize a dictionary to store the RMS errors
+rms_errors = {}
+
+# Loop through all pairs of images
+for (i, j) in itertools.combinations(range(len(images)), 2):
+    # If the transformation from i to j is not direct, concatenate the transformations
+    h_matrix = np.linalg.inv(tform[i]) @ tform[j] if i < j else np.linalg.inv(tform[j]) @ tform[i]
+
+    # Extract matching points for the image pair (i, j)
+    points1, points2 = matching_points[(min(i, j), max(i, j))]
+
+    # If the transformation is from j to i, swap the points
+    if i > j:
+        points1, points2 = points2, points1
+
+    # Transform points2 to the coordinate system of image 1
+    transformed_points2 = cv2.perspectiveTransform(points2, h_matrix)
+
+    # Calculate the error distances
+    error_distances = np.sqrt(np.sum((points1 - transformed_points2) ** 2, axis=2)).squeeze()
+
+    # Calculate the RMS error for the pair (i, j)
+    rms_errors[(i, j)] = np.sqrt(np.mean(error_distances ** 2))
+
+# Calculate the overall RMS
+overall_rms = np.sqrt(np.mean(np.array(list(rms_errors.values())) ** 2))
+
+# Print the pairwise RMS errors and the overall RMS
+for pair, rms_error in rms_errors.items():
+    print(f"E_{pair[0] + 1},{pair[1] + 1} = {rms_error}")
+print(f"Overall RMS = {overall_rms}")
